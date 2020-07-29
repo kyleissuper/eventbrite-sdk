@@ -21,15 +21,22 @@
   end,
   triggers: {
     new_or_updated_attendee: {
+      help: "Provide either Event ID or Organization ID. 'Since' is optional",
       input_fields: lambda do
         [
-          { name: "event_id", optional: false },
+          { name: "event_id" },
+          { name: "organization_id", control_type: "select", pick_list: "orgs" },
           { name: "since", type: "timestamp" }
         ]
       end,
       poll: lambda do |connection, input, last_updated_since|
+        if input["event_id"].present?
+          url = "https://www.eventbriteapi.com/v3/events/#{input["event_id"]}/attendees/"
+        else
+          url = "https://www.eventbriteapi.com/v3/organizations/#{input["organization_id"]}/attendees/"
+        end
         changed_since = (last_updated_since || input['since'] || 100.years.ago).to_time.utc.iso8601
-        response = get("https://www.eventbriteapi.com/v3/events/#{input["event_id"]}/attendees/").
+        response = get(url).
           params(changed_since: changed_since)
         next_updated_since = response["attendees"].last['changed'] unless response["attendees"].length == 0
         {
@@ -5079,5 +5086,11 @@
         ]
       end
     }
+  },
+  pick_lists: {
+    orgs: lambda do |connection|
+      get("https://www.eventbriteapi.com/v3/users/me/organizations/")["organizations"].
+        map { |org| [org["name"], org["id"]] }
+    end
   }
 }
